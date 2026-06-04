@@ -92,6 +92,19 @@ EditorViewModel::EditorViewModel() {
             is_updating_ = true;
             std::string serialized = generateDslFromAst(currentAst, 0);
             dslText.set(serialized);
+
+            // Rebuild hierarchy and restore selection
+            std::vector<HierarchyItem> h_items;
+            hierarchyItems.set(h_items);
+            rebuildHierarchyItems(currentAst, 0);
+
+            const auto& new_items = hierarchyItems.get();
+            for (size_t i = 0; i < new_items.size(); ++i) {
+                if (new_items[i].id == targetId) {
+                    selectedIndex = static_cast<int>(i);
+                    break;
+                }
+            }
             is_updating_ = false;
         }
     }));

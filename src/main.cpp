@@ -1,5 +1,6 @@
 #include <iostream>
 #include <memory>
+#include <vector>
 #include "ooey/ooey.hpp"
 #include "gooey/application.hpp"
 #include "ooey/platform.hpp"
@@ -9,6 +10,7 @@
 #include "tooey/lexer.hpp"
 #include "tooey/parser.hpp"
 #include "ooey/renderer/primitives/rect_primitive.hpp"
+#include "gooey/mvvmc/scoped_subscription.hpp"
 
 // Custom element to draw selection outline & grips over the selected widget on the canvas
 class SelectionOverlay : public gooey::mvvmc::GooeyElement {
@@ -106,6 +108,9 @@ int main() {
     auto selectionOverlay = std::make_shared<SelectionOverlay>();
     std::shared_ptr<gooey::mvvmc::GooeyElement> activePreview;
 
+    // Vector to keep ScopedSubscriptions alive for main()'s duration
+    std::vector<gooey::mvvmc::ScopedSubscription> subs;
+
     // Link Designer actions to buttons
     editorView->btnAdd->on_click = [viewModel, editorView]() {
         int index = editorView->toolboxList->get_selected_index();
@@ -141,6 +146,18 @@ int main() {
         }
         editorView->previewCanvas->invalidate_layout();
     };
+
+    // Keep view list selection in sync with VM-side hierarchy items updates (e.g. from property edits or moves)
+    subs.push_back(viewModel->hierarchyItems.subscribe([viewModel, editorView, selectionOverlay](const std::vector<HierarchyItem>& /*items*/) {
+        if (viewModel->selectedIndex >= 0 && viewModel->selectedIndex < static_cast<int>(viewModel->hierarchyItems.get().size())) {
+            editorView->hierarchyList->set_selected_index(viewModel->selectedIndex);
+            selectionOverlay->targetId = viewModel->hierarchyItems.get()[viewModel->selectedIndex].id;
+        } else {
+            editorView->hierarchyList->set_selected_index(-1);
+            selectionOverlay->targetId.clear();
+        }
+        editorView->previewCanvas->invalidate_layout();
+    }));
 
     // Support clicking directly on preview canvas widgets to select them
     editorView->previewCanvas->on_canvas_pointer = [viewModel, &activePreview, editorView](const ooey::Pointer& e) {
@@ -197,7 +214,7 @@ int main() {
     };
 
     // Keep the live canvas preview synchronized with the DSL text edits
-    viewModel->dslText.subscribe([viewModel, editorView, selectionOverlay, &activePreview](const std::string& dsl) {
+    subs.push_back(viewModel->dslText.subscribe([viewModel, editorView, selectionOverlay, &activePreview](const std::string& dsl) {
         try {
             auto tokens = tooey::Lexer::tokenize(dsl);
             auto ast = tooey::Parser::parse(tokens);
@@ -214,7 +231,7 @@ int main() {
         } catch (...) {
             // Safe ignore syntax error during typing
         }
-    });
+    }));
 
     // Run initial preview sync
     std::string initDsl = viewModel->dslText.get();
