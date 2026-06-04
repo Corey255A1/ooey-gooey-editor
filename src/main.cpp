@@ -8,6 +8,83 @@
 #include "DynamicInterpreter.hpp"
 #include "tooey/lexer.hpp"
 #include "tooey/parser.hpp"
+#include "ooey/renderer/primitives/rect_primitive.hpp"
+
+// Custom element to draw selection outline & grips over the selected widget on the canvas
+class SelectionOverlay : public gooey::mvvmc::GooeyElement {
+public:
+    std::string targetId;
+    std::weak_ptr<gooey::mvvmc::GooeyElement> activePreview;
+
+    SelectionOverlay() {
+        is_absolute = true;
+        rect_prim_ = std::make_shared<ooey::RectPrimitive>(
+            ooey::Rect{0, 0, 0, 0},
+            ooey::Color{0, 0, 0, 0},      // Transparent fill
+            ooey::Color{0, 120, 215, 255}, // Bright blue border
+            2.0f
+        );
+    }
+
+    void draw(ooey::IRenderTarget& target) const override {
+        auto preview = activePreview.lock();
+        if (preview && !targetId.empty()) {
+            auto element = find_element_by_id(preview, targetId);
+            if (element && element->layout_bounds.width > 0 && element->layout_bounds.height > 0) {
+                int x = 0;
+                int y = 0;
+                gooey::mvvmc::GooeyElement* current = element.get();
+                while (current && current != preview.get()) {
+                    x += current->layout_bounds.x;
+                    y += current->layout_bounds.y;
+                    current = current->get_parent();
+                }
+                ooey::Rect outline_rect = {
+                    x - 2,
+                    y - 2,
+                    element->layout_bounds.width + 4,
+                    element->layout_bounds.height + 4
+                };
+                rect_prim_->set_rect(outline_rect);
+                rect_prim_->draw(target);
+
+                // Draw standard 6x6 grip boxes at corners
+                auto r = rect_prim_->get_rect();
+                ooey::Color handle_color = ooey::Color{255, 255, 255, 255};
+                ooey::Color handle_border = ooey::Color{0, 120, 215, 255};
+                int hs = 6;
+                std::vector<ooey::Rect> handles = {
+                    {r.x - hs/2, r.y - hs/2, hs, hs},
+                    {r.x + r.width - hs/2, r.y - hs/2, hs, hs},
+                    {r.x - hs/2, r.y + r.height - hs/2, hs, hs},
+                    {r.x + r.width - hs/2, r.y + r.height - hs/2, hs, hs}
+                };
+                for (const auto& h : handles) {
+                    ooey::RectPrimitive(h, handle_color, handle_border, 1.0f).draw(target);
+                }
+            }
+        }
+    }
+
+private:
+    static std::shared_ptr<gooey::mvvmc::GooeyElement> find_element_by_id(
+        const std::shared_ptr<gooey::mvvmc::GooeyElement>& root, 
+        const std::string& id) {
+        if (!root) return nullptr;
+        if (root->id == id) return root;
+        auto node = std::dynamic_pointer_cast<gooey::mvvmc::GooeyNode>(root);
+        if (node) {
+            for (const auto& child : node->get_children()) {
+                auto child_el = std::dynamic_pointer_cast<gooey::mvvmc::GooeyElement>(child);
+                auto found = find_element_by_id(child_el, id);
+                if (found) return found;
+            }
+        }
+        return nullptr;
+    }
+
+    std::shared_ptr<ooey::RectPrimitive> rect_prim_;
+};
 
 int main() {
     std::cout << "Starting OOEY-GOOEY WYSIWYG Editor...\n";
@@ -15,7 +92,8 @@ int main() {
     gooey::Application app;
 
     auto backend = ooey::create_default_window_backend();
-    if (!backend || !backend->create({1024, 768}, "OOEY-GOOEY Layout Builder")) {
+    // Use 1280x800 to exactly fit the sum of left/right sidebars, padding, and center area
+    if (!backend || !backend->create({1280, 800}, "OOEY-GOOEY Layout Builder")) {
         std::cerr << "Failed to create window\n";
         return 1;
     }
@@ -25,28 +103,112 @@ int main() {
     auto viewModel = std::make_shared<EditorViewModel>();
     auto editorView = std::make_shared<EditorView>(viewModel);
 
-    // Link Toolbox list selection to add controls
-    editorView->toolboxList->on_selected_changed = [viewModel](int index) {
+    auto selectionOverlay = std::make_shared<SelectionOverlay>();
+    std::shared_ptr<gooey::mvvmc::GooeyElement> activePreview;
+
+    // Link Designer actions to buttons
+    editorView->btnAdd->on_click = [viewModel, editorView]() {
+        int index = editorView->toolboxList->get_selected_index();
         if (index >= 0 && index < static_cast<int>(viewModel->toolboxItems.get().size())) {
             viewModel->addControlToCanvas(viewModel->toolboxItems.get()[index].name);
         }
     };
 
-    // Link Hierarchy list selection to update property grid
-    editorView->hierarchyList->on_selected_changed = [viewModel](int index) {
+    editorView->btnDelete->on_click = [viewModel, editorView, selectionOverlay]() {
+        viewModel->deleteSelectedElement();
+        selectionOverlay->targetId.clear();
+        editorView->hierarchyList->set_selected_index(-1);
+        editorView->previewCanvas->invalidate_layout();
+    };
+
+    editorView->btnMoveUp->on_click = [viewModel, editorView]() {
+        viewModel->moveSelectedElementUp();
+        editorView->hierarchyList->set_selected_index(viewModel->selectedIndex);
+    };
+
+    editorView->btnMoveDown->on_click = [viewModel, editorView]() {
+        viewModel->moveSelectedElementDown();
+        editorView->hierarchyList->set_selected_index(viewModel->selectedIndex);
+    };
+
+    // Link Hierarchy list selection to update property grid and selection highlight
+    editorView->hierarchyList->on_selected_changed = [viewModel, selectionOverlay, editorView](int index) {
         viewModel->selectElement(index);
+        if (index >= 0 && index < static_cast<int>(viewModel->hierarchyItems.get().size())) {
+            selectionOverlay->targetId = viewModel->hierarchyItems.get()[index].id;
+        } else {
+            selectionOverlay->targetId.clear();
+        }
+        editorView->previewCanvas->invalidate_layout();
+    };
+
+    // Support clicking directly on preview canvas widgets to select them
+    editorView->previewCanvas->on_canvas_pointer = [viewModel, &activePreview, editorView](const ooey::Pointer& e) {
+        if (e.state == ooey::PointerState::Pressed && activePreview) {
+            int canvas_x = e.x - editorView->previewCanvas->layout_bounds.x;
+            int canvas_y = e.y - editorView->previewCanvas->layout_bounds.y;
+
+            struct HitTester {
+                static std::shared_ptr<gooey::mvvmc::GooeyElement> hit_test(
+                    const std::shared_ptr<gooey::mvvmc::GooeyElement>& element, 
+                    int x, int y, int offset_x, int offset_y) {
+                    
+                    if (!element) return nullptr;
+                    int local_x = element->layout_bounds.x + offset_x;
+                    int local_y = element->layout_bounds.y + offset_y;
+                    
+                    bool hit = (x >= local_x && x <= local_x + element->layout_bounds.width &&
+                                y >= local_y && y <= local_y + element->layout_bounds.height);
+                    if (!hit) return nullptr;
+                    
+                    auto node = std::dynamic_pointer_cast<gooey::mvvmc::GooeyNode>(element);
+                    if (node) {
+                        for (const auto& child : node->get_children()) {
+                            auto child_el = std::dynamic_pointer_cast<gooey::mvvmc::GooeyElement>(child);
+                            auto child_hit = hit_test(child_el, x, y, local_x, local_y);
+                            if (child_hit) return child_hit;
+                        }
+                    }
+                    return element;
+                }
+            };
+            
+            auto hit = HitTester::hit_test(activePreview, canvas_x, canvas_y, 0, 0);
+            if (hit && !hit->id.empty() && hit->id != "mainLayout") {
+                const auto& items = viewModel->hierarchyItems.get();
+                for (size_t i = 0; i < items.size(); ++i) {
+                    if (items[i].id == hit->id) {
+                        viewModel->selectElement(static_cast<int>(i));
+                        editorView->hierarchyList->set_selected_index(static_cast<int>(i));
+                        break;
+                    }
+                }
+            }
+        }
+    };
+
+    // Propagate code editor edits back to the ViewModel reactive property
+    editorView->codeEditor->on_text_changed = [viewModel](const std::string& text) {
+        if (viewModel->is_updating_) return;
+        viewModel->is_updating_ = true;
+        viewModel->dslText.set(text);
+        viewModel->updateCanvasFromDsl(text);
+        viewModel->is_updating_ = false;
     };
 
     // Keep the live canvas preview synchronized with the DSL text edits
-    viewModel->dslText.subscribe([viewModel, editorView](const std::string& dsl) {
+    viewModel->dslText.subscribe([viewModel, editorView, selectionOverlay, &activePreview](const std::string& dsl) {
         try {
             auto tokens = tooey::Lexer::tokenize(dsl);
             auto ast = tooey::Parser::parse(tokens);
             if (ast) {
                 auto livePreview = editor::DynamicInterpreter::interpret(ast);
                 if (livePreview) {
+                    activePreview = livePreview;
+                    selectionOverlay->activePreview = activePreview;
                     editorView->previewCanvas->clear_children();
                     editorView->previewCanvas->add_child(livePreview);
+                    editorView->previewCanvas->add_child(selectionOverlay);
                 }
             }
         } catch (...) {
@@ -62,7 +224,10 @@ int main() {
         if (ast) {
             auto livePreview = editor::DynamicInterpreter::interpret(ast);
             if (livePreview) {
+                activePreview = livePreview;
+                selectionOverlay->activePreview = activePreview;
                 editorView->previewCanvas->add_child(livePreview);
+                editorView->previewCanvas->add_child(selectionOverlay);
             }
         }
     } catch (...) {}

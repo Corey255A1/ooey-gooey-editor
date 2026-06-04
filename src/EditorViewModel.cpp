@@ -357,3 +357,112 @@ std::string EditorViewModel::generateDslFromAst(const std::shared_ptr<tooey::Ast
     return ss.str();
 }
 
+void EditorViewModel::deleteSelectedElement() {
+    if (selectedIndex < 0 || selectedIndex >= static_cast<int>(hierarchyItems.get().size())) return;
+    auto targetId = hierarchyItems.get()[selectedIndex].id;
+    if (targetId == "mainLayout") return;
+
+    struct Deleter {
+        std::string targetId;
+        bool delete_node(const std::shared_ptr<tooey::AstNode>& parent) {
+            if (!parent) return false;
+            for (auto it = parent->children.begin(); it != parent->children.end(); ++it) {
+                if ((*it)->id == targetId) {
+                    parent->children.erase(it);
+                    return true;
+                }
+                if (delete_node(*it)) return true;
+            }
+            return false;
+        }
+    };
+
+    Deleter del{targetId};
+    if (del.delete_node(currentAst)) {
+        selectedIndex = -1;
+        is_updating_ = true;
+        std::string serialized = generateDslFromAst(currentAst, 0);
+        dslText.set(serialized);
+        updateCanvasFromDsl(serialized);
+        is_updating_ = false;
+    }
+}
+
+void EditorViewModel::moveSelectedElementUp() {
+    if (selectedIndex < 0 || selectedIndex >= static_cast<int>(hierarchyItems.get().size())) return;
+    auto targetId = hierarchyItems.get()[selectedIndex].id;
+    if (targetId == "mainLayout") return;
+
+    struct Mover {
+        std::string targetId;
+        bool move_up(const std::shared_ptr<tooey::AstNode>& parent) {
+            if (!parent) return false;
+            for (auto it = parent->children.begin(); it != parent->children.end(); ++it) {
+                if ((*it)->id == targetId) {
+                    if (it != parent->children.begin()) {
+                        std::iter_swap(it, it - 1);
+                        return true;
+                    }
+                    return false;
+                }
+                if (move_up(*it)) return true;
+            }
+            return false;
+        }
+    };
+
+    Mover mov{targetId};
+    if (mov.move_up(currentAst)) {
+        is_updating_ = true;
+        std::string serialized = generateDslFromAst(currentAst, 0);
+        dslText.set(serialized);
+        updateCanvasFromDsl(serialized);
+        for (size_t i = 0; i < hierarchyItems.get().size(); ++i) {
+            if (hierarchyItems.get()[i].id == targetId) {
+                selectedIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        is_updating_ = false;
+    }
+}
+
+void EditorViewModel::moveSelectedElementDown() {
+    if (selectedIndex < 0 || selectedIndex >= static_cast<int>(hierarchyItems.get().size())) return;
+    auto targetId = hierarchyItems.get()[selectedIndex].id;
+    if (targetId == "mainLayout") return;
+
+    struct Mover {
+        std::string targetId;
+        bool move_down(const std::shared_ptr<tooey::AstNode>& parent) {
+            if (!parent) return false;
+            for (auto it = parent->children.begin(); it != parent->children.end(); ++it) {
+                if ((*it)->id == targetId) {
+                    if (it + 1 != parent->children.end()) {
+                        std::iter_swap(it, it + 1);
+                        return true;
+                    }
+                    return false;
+                }
+                if (move_down(*it)) return true;
+            }
+            return false;
+        }
+    };
+
+    Mover mov{targetId};
+    if (mov.move_down(currentAst)) {
+        is_updating_ = true;
+        std::string serialized = generateDslFromAst(currentAst, 0);
+        dslText.set(serialized);
+        updateCanvasFromDsl(serialized);
+        for (size_t i = 0; i < hierarchyItems.get().size(); ++i) {
+            if (hierarchyItems.get()[i].id == targetId) {
+                selectedIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        is_updating_ = false;
+    }
+}
+

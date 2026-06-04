@@ -41,6 +41,9 @@ public:
     void updateProperty(int index, const std::string& newValue);
     void addControlToCanvas(const std::string& type);
     void updateCanvasFromDsl(const std::string& dsl);
+    void deleteSelectedElement();
+    void moveSelectedElementUp();
+    void moveSelectedElementDown();
 
     // Active parsed AST representation
     std::shared_ptr<tooey::AstNode> currentAst;

@@ -59,6 +59,7 @@ public:
             element = std::make_shared<gooey::Column>();
         }
 
+        element->id = node->id;
         element->set_absolute(false);
 
         // Map AST property values to widget properties using setters
