@@ -67,7 +67,7 @@ set(EDITOR_GEN_SRC "${EDITOR_GEN_DIR}/EditorView.cpp")
 add_custom_command(
     OUTPUT "${EDITOR_GEN_HDR}" "${EDITOR_GEN_SRC}"
     COMMAND /home/corey/code/ooey/build/tooey/tooey_compiler "${EDITOR_OOEY}" "${EDITOR_GEN_DIR}" "EditorView" "EditorViewModel"
-    DEPENDS "${EDITOR_OOEY}"
+    DEPENDS "${EDITOR_OOEY}" "/home/corey/code/ooey/build/tooey/tooey_compiler"
     COMMENT "Compiling EditorView.ooey with pre-compiled tooey_compiler"
 )
 

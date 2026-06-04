@@ -107,12 +107,25 @@ public:
         }
 
         // Interpret child nodes recursively
-        auto node_element = std::dynamic_pointer_cast<gooey::mvvmc::GooeyNode>(element);
-        if (node_element) {
+        auto scroll_container = std::dynamic_pointer_cast<gooey::controls::ScrollContainer>(element);
+        if (scroll_container) {
             for (const auto& child : node->children) {
                 auto child_element = interpret(child);
                 if (child_element) {
-                    node_element->add_child(child_element);
+                    auto child_node = std::dynamic_pointer_cast<gooey::mvvmc::GooeyNode>(child_element);
+                    if (child_node) {
+                        scroll_container->set_child(child_node);
+                    }
+                }
+            }
+        } else {
+            auto node_element = std::dynamic_pointer_cast<gooey::mvvmc::GooeyNode>(element);
+            if (node_element) {
+                for (const auto& child : node->children) {
+                    auto child_element = interpret(child);
+                    if (child_element) {
+                        node_element->add_child(child_element);
+                    }
                 }
             }
         }
