@@ -1,0 +1,26 @@
+HBox id=editorRoot spacing=10 width="MatchParent" height="MatchParent":
+    VBox id=leftSidebar width=250 spacing=15:
+        Label id=toolboxTitle text="Tool Palette"
+        ListControl id=toolboxList items=@binding.toolboxItems width="MatchParent" height=200:
+            Row id=toolRow height=35:
+                Label id=toolLabel text=@binding.toolboxItems.name
+                
+        Label id=treeTitle text="Visual Tree Hierarchy"
+        ListControl id=hierarchyList items=@binding.hierarchyItems width="MatchParent" height=250:
+            Row id=hierRow height=35:
+                Label id=hierLabel text=@binding.hierarchyItems.name
+
+    VBox id=centerArea spacing=10 width="MatchParent" height="MatchParent":
+        Label id=canvasTitle text="Live Preview Canvas"
+        ScrollContainer id=canvasContainer width="MatchParent" height="MatchParent":
+            CanvasLayout id=previewCanvas width=800 height=600
+        
+        Label id=editorTitle text="DSL Code Editor"
+        RichTextBox id=codeEditor text=@binding.dslText width="MatchParent" height=200
+
+    VBox id=rightSidebar width=250 spacing=15:
+        Label id=propertiesTitle text="Property Inspector"
+        ListControl id=propertiesList items=@binding.propertyItems width="MatchParent" height=350:
+            Row id=propRow height=35:
+                Label id=propName text=@binding.propertyItems.name width=100
+                TextBox id=propVal text=@binding.propertyItems.value width=120
