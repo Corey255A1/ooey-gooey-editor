@@ -94,8 +94,8 @@ int main() {
     gooey::Application app;
 
     auto backend = ooey::create_default_window_backend();
-    // Use 1280x800 to exactly fit the sum of left/right sidebars, padding, and center area
-    if (!backend || !backend->create({1280, 800}, "OOEY-GOOEY Layout Builder")) {
+    // Use 1024x768 to exactly fit the sum of left/right sidebars, padding, and center area
+    if (!backend || !backend->create({1024, 768}, "OOEY-GOOEY Layout Builder")) {
         std::cerr << "Failed to create window\n";
         return 1;
     }

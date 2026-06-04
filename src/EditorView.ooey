@@ -1,7 +1,7 @@
 HBox id=editorRoot spacing=10 width="MatchParent" height="MatchParent":
-    VBox id=leftSidebar width=250 spacing=15:
+    VBox id=leftSidebar width=200 spacing=15:
         Label id=toolboxTitle text="Tool Palette"
-        ListControl id=toolboxList items=@binding.toolboxItems width="MatchParent" height=180:
+        ListControl id=toolboxList items=@binding.toolboxItems width="MatchParent" height=160:
             Row id=toolRow height=35:
                 Label id=toolLabel text=@binding.toolboxItems.name
                 
@@ -9,7 +9,7 @@ HBox id=editorRoot spacing=10 width="MatchParent" height="MatchParent":
             Button id=btnAdd text="Add Selected"
             
         Label id=treeTitle text="Visual Tree Hierarchy"
-        ListControl id=hierarchyList items=@binding.hierarchyItems width="MatchParent" height=220:
+        ListControl id=hierarchyList items=@binding.hierarchyItems width="MatchParent" height=180:
             Row id=hierRow height=35:
                 Label id=hierLabel text=@binding.hierarchyItems.name
 
@@ -18,18 +18,19 @@ HBox id=editorRoot spacing=10 width="MatchParent" height="MatchParent":
             Button id=btnMoveUp text="Up"
             Button id=btnMoveDown text="Down"
 
-    VBox id=centerArea spacing=10 width=730 height="MatchParent":
+    VBox id=centerArea spacing=10 width=540 height="MatchParent":
         Label id=canvasTitle text="Live Preview Canvas"
-        ScrollContainer id=canvasContainer width="MatchParent" height=450:
-            CanvasLayout id=previewCanvas width=800 height=600
+        ScrollContainer id=canvasContainer width="MatchParent" height=420:
+            CanvasLayout id=previewCanvas width=500 height=400
         
         Label id=editorTitle text="DSL Code Editor"
-        RichTextBox id=codeEditor text=@binding.dslText width="MatchParent" height=250
+        RichTextBox id=codeEditor text=@binding.dslText width="MatchParent" height=240
 
-    VBox id=rightSidebar width=250 spacing=15:
+    VBox id=rightSidebar width=200 spacing=15:
         Label id=propertiesTitle text="Property Inspector"
         ListControl id=propertiesList items=@binding.propertyItems width="MatchParent" height=350:
             Row id=propRow height=35:
-                Label id=propName text=@binding.propertyItems.name width=100
-                TextBox id=propVal text=@binding.propertyItems.value width=120
+                Label id=propName text=@binding.propertyItems.name width=90
+                TextBox id=propVal text=@binding.propertyItems.value width=90
+
 
