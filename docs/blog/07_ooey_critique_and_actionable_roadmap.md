@@ -91,9 +91,9 @@ Implement a two-phase event routing system (Tunneling and Bubbling).
 
 Implementing these changes will transform OOEY from a basic UI rendering library into a developer-friendly, robust engine ready for complex visual construction tools:
 
-| Feature / Issue | Community Critique | Actionable Remedy |
-| :--- | :--- | :--- |
-| **Reflection** | Hardcoded types & casting | Centralized `TypeRegistry` and string-to-setter mapping |
-| **Child Sizing** | Silent parent collapse | Refactor single-child containers; assert on invalid hierarchy additions |
-| **Resizing Grips** | Pointer loss on fast drag | Global `pointer_capture` locking events to handles |
-| **Event Routing** | Swallowed mouse clicks | Two-phase Event dispatch path (Tunneling & Bubbling) |
+| Feature / Issue | Community Critique | Actionable Remedy | Status |
+| :--- | :--- | :--- | :--- |
+| **Reflection** | Hardcoded types & casting | Centralized `TypeRegistry` and string-to-setter mapping | Pending |
+| **Child Sizing** | Silent parent collapse | Refactor single-child containers; assert on invalid hierarchy additions | **Resolved** (Virtual `add_child` override in `ScrollContainer`) |
+| **Resizing Grips** | Pointer loss on fast drag | Global `pointer_capture` locking events to handles | **Resolved** (Explicit `set_captured_element` in `Controller`) |
+| **Event Routing** | Swallowed mouse clicks | Two-phase Event dispatch path (Tunneling & Bubbling) | Pending |
