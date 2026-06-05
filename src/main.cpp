@@ -215,6 +215,14 @@ int main() {
         viewModel->is_updating_ = false;
     };
 
+    editorView->codeEditor->on_undo = [viewModel]() {
+        viewModel->undo();
+    };
+
+    editorView->codeEditor->on_redo = [viewModel]() {
+        viewModel->redo();
+    };
+
     // Keep the live canvas preview synchronized with the DSL text edits
     subs.push_back(viewModel->dslText.subscribe([viewModel, editorView, selectionOverlay, &activePreview](const std::string& dsl) {
         try {
@@ -273,6 +281,29 @@ int main() {
                     }
                 } type_chk{*editorView->codeEditor};
                 type_chk.check(ast);
+
+                // 4. Missing localization check
+                struct LocalizationChecker {
+                    gooey::controls::RichTextBox& editor;
+                    void check(const std::shared_ptr<tooey::AstNode>& n) {
+                        if (!n) return;
+                        for (const auto& prop : n->properties) {
+                            if ((prop.first == "text" || prop.first == "title" || prop.first == "label") &&
+                                prop.second.type == tooey::PropertyType::String) {
+                                std::string line_text = editor.get_line_text(n->line - 1);
+                                size_t prop_pos = line_text.find(prop.first);
+                                if (prop_pos != std::string::npos) {
+                                    size_t val_pos = line_text.find(prop.second.rawData, prop_pos);
+                                    if (val_pos != std::string::npos) {
+                                        editor.add_squiggle(n->line - 1, val_pos, val_pos + prop.second.rawData.size(), ooey::Color{255, 165, 0, 255}); // Orange warning
+                                    }
+                                }
+                            }
+                        }
+                        for (const auto& child : n->children) check(child);
+                    }
+                } loc_chk{*editorView->codeEditor};
+                loc_chk.check(ast);
 
                 auto livePreview = editor::DynamicInterpreter::interpret(ast);
                 if (livePreview) {
