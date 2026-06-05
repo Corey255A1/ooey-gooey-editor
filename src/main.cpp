@@ -1,6 +1,8 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <map>
+#include <set>
 #include "ooey/ooey.hpp"
 #include "gooey/application.hpp"
 #include "ooey/platform.hpp"
@@ -216,9 +218,62 @@ int main() {
     // Keep the live canvas preview synchronized with the DSL text edits
     subs.push_back(viewModel->dslText.subscribe([viewModel, editorView, selectionOverlay, &activePreview](const std::string& dsl) {
         try {
+            editorView->codeEditor->clear_squiggles();
+
             auto tokens = tooey::Lexer::tokenize(dsl);
+            
+            // 1. Lexer errors (UNKNOWN tokens)
+            for (const auto& tok : tokens) {
+                if (tok.type == tooey::TokenType::UNKNOWN) {
+                    editorView->codeEditor->add_squiggle(tok.line - 1, tok.column - 1, tok.column - 1 + tok.text.size(), ooey::Color{255, 0, 0, 255});
+                }
+            }
+
             auto ast = tooey::Parser::parse(tokens);
             if (ast) {
+                // 2. Duplicate ID check
+                std::map<std::string, const tooey::AstNode*> id_map;
+                struct DuplicateChecker {
+                    gooey::controls::RichTextBox& editor;
+                    std::map<std::string, const tooey::AstNode*>& id_map;
+
+                    void check(const std::shared_ptr<tooey::AstNode>& n) {
+                        if (!n) return;
+                        if (!n->id.empty()) {
+                            auto it = id_map.find(n->id);
+                            if (it != id_map.end()) {
+                                editor.add_squiggle(n->line - 1, n->column - 1, n->column - 1 + n->id.size() + 4, ooey::Color{255, 0, 0, 255});
+                            } else {
+                                id_map[n->id] = n.get();
+                            }
+                        }
+                        for (const auto& child : n->children) check(child);
+                    }
+                } dup_chk{*editorView->codeEditor, id_map};
+                dup_chk.check(ast);
+
+                // 3. Unrecognized Control types check
+                struct ElementTypeChecker {
+                    gooey::controls::RichTextBox& editor;
+                    void check(const std::shared_ptr<tooey::AstNode>& n) {
+                        if (!n) return;
+                        if (n->nodeType != "Root") {
+                            static const std::set<std::string> known_types = {
+                                "VBox", "Column", "HBox", "Row", "Grid", "FlowLayout",
+                                "Button", "CheckBox", "Label", "TextBox", "RichTextBox",
+                                "ImageControl", "ScrollBar", "ScrollContainer", "ListControl",
+                                "DataGrid", "AdaptiveStack", "CanvasLayout", "VectorShapeView",
+                                "Root"
+                            };
+                            if (known_types.find(n->nodeType) == known_types.end()) {
+                                editor.add_squiggle(n->line - 1, n->column - 1, n->column - 1 + n->nodeType.size(), ooey::Color{255, 165, 0, 255});
+                            }
+                        }
+                        for (const auto& child : n->children) check(child);
+                    }
+                } type_chk{*editorView->codeEditor};
+                type_chk.check(ast);
+
                 auto livePreview = editor::DynamicInterpreter::interpret(ast);
                 if (livePreview) {
                     activePreview = livePreview;
@@ -236,6 +291,7 @@ int main() {
     // Run initial preview sync
     std::string initDsl = viewModel->dslText.get();
     try {
+        editorView->codeEditor->clear_squiggles();
         auto tokens = tooey::Lexer::tokenize(initDsl);
         auto ast = tooey::Parser::parse(tokens);
         if (ast) {
