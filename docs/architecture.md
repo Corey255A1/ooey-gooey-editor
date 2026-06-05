@@ -141,3 +141,12 @@ Example:
 3. **Interpreter Engine**: Implement the `DynamicInterpreter` mapping `AstNode` to live `GooeyElement` trees.
 4. **WYSIWYG Layout**: Define the UI of the editor in `.ooey` layout files and compile them into C++ classes.
 5. **Canvas Selection Handles**: Build custom controls representing outline selection borders and size drag grips to enable visual layout editing.
+
+---
+
+## 6. Coding Standards & Guidelines
+
+* **OOEY Coding Standards**: The OOEY-GOOEY editor codebase must strictly adhere to the [OOEY Project Coding Standards](file:///home/corey/code/ooey/docs/coding-standards.md).
+* **SOLID Principles**: Developers should adhere to the SOLID principles of object-oriented design to maintain clean abstraction, single responsibility, and decoupled dependencies.
+* **Precise Methods**: Strive for small, precise, and single-purpose methods and helper functions where appropriate.
+* **Descriptive Variables**: Prefer descriptive, self-documenting names over short, obscure variable names.
