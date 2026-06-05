@@ -10,12 +10,19 @@ This post details implementing the selection overlay engine, calculating recursi
 
 When a user clicks on the visual preview stage, the editor must identify which control lies beneath the pointer. Because layouts are nested, we must traverse the active interpreted visual tree recursively to find the topmost child enclosing the pointer coordinates.
 
-We implement this logic inside the canvas pointer handler:
+### A. Coordinate Space Mapping
+The pointer event coordinates `(e.x, e.y)` dispatched by the window backend are global to the entire application window client area. To test targets inside the preview canvas, we must transform these coordinates into canvas-local space by subtracting the absolute layout position of the `previewCanvas` itself:
+```cpp
+int canvas_x = e.x - editorView->previewCanvas->layout_bounds.x;
+int canvas_y = e.y - editorView->previewCanvas->layout_bounds.y;
+```
+
+### B. Recursive Traversal
+We implement this hit-testing logic inside the canvas pointer handler:
 
 ```cpp
 editorView->previewCanvas->on_canvas_pointer = [viewModel, &activePreview, editorView](const ooey::Pointer& e) {
     if (e.state == ooey::PointerState::Pressed && activePreview) {
-        // Convert screen-space coordinates to canvas-space coordinates
         int canvas_x = e.x - editorView->previewCanvas->layout_bounds.x;
         int canvas_y = e.y - editorView->previewCanvas->layout_bounds.y;
 
@@ -151,11 +158,13 @@ private:
 };
 ```
 
+Whenever the selection focus changes, we call `invalidate_layout()` on the preview canvas to force a redraw pass, ensuring the selection overlay boundary recalculates and updates instantly.
+
 ---
 
 ## 3. Wiring the Property Grid to AST Mutations
 
-When an element is selected, we query its properties from the active AST representation and populate our `propertyItems` vector:
+When an element is selected, we query its properties from the active AST representation. In addition to raw properties, we also check for width/height properties and ensure that special values (like Localization, Data Bindings, and Signals) are properly formatted:
 
 ```cpp
 void EditorViewModel::updatePropertyItems() {
@@ -164,31 +173,47 @@ void EditorViewModel::updatePropertyItems() {
         return;
     }
 
-    auto targetId = hierarchyItems.get()[selectedIndex].id;
+    auto selected_item = hierarchyItems.get()[selectedIndex];
     
     struct Finder {
         std::string targetId;
-        std::shared_ptr<tooey::AstNode> foundNode;
-
-        void find(const std::shared_ptr<tooey::AstNode>& n) {
-            if (!n || foundNode) return;
-            if (n->id == targetId) {
-                foundNode = n;
-                return;
+        std::shared_ptr<tooey::AstNode> find(const std::shared_ptr<tooey::AstNode>& n) {
+            if (!n) return nullptr;
+            if (n->id == targetId) return n;
+            for (const auto& child : n->children) {
+                auto found = find(child);
+                if (found) return found;
             }
-            for (const auto& child : n->children) find(child);
+            return nullptr;
         }
-    } f{targetId, nullptr};
-    f.find(currentAst);
+    };
 
-    if (f.foundNode) {
+    Finder fnd{selected_item.id};
+    auto node = fnd.find(currentAst);
+    if (node) {
         std::vector<PropertyItem> props;
-        props.push_back({"id", f.foundNode->id});
-        
-        // Add widget attributes
-        for (const auto& p : f.foundNode->properties) {
-            props.push_back({p.first, p.second.rawData});
+        props.push_back({"id", node->id});
+        for (const auto& prop : node->properties) {
+            std::string val = prop.second.rawData;
+            if (prop.second.type == tooey::PropertyType::Localization) {
+                val = "@tr(\"" + val + "\")";
+            } else if (prop.second.type == tooey::PropertyType::Binding) {
+                val = "@binding." + val;
+            } else if (prop.second.type == tooey::PropertyType::Signal) {
+                val = "@signal." + val;
+            }
+            props.push_back({prop.first, val});
         }
+        
+        // Ensure width and height fallbacks are present in inspector
+        bool has_width = false, has_height = false;
+        for (const auto& p : props) {
+            if (p.name == "width") has_width = true;
+            if (p.name == "height") has_height = true;
+        }
+        if (!has_width) props.push_back({"width", "WrapContent"});
+        if (!has_height) props.push_back({"height", "WrapContent"});
+
         propertyItems.set(props);
     }
 }
