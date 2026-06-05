@@ -74,6 +74,8 @@ add_custom_command(
 add_executable(ooey_gooey_editor
     src/main.cpp
     src/EditorViewModel.cpp
+    src/AstService.cpp
+    src/DynamicInterpreter.cpp
     "${EDITOR_GEN_SRC}"
 )
 

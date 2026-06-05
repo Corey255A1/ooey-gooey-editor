@@ -62,6 +62,5 @@ private:
 
     void rebuildHierarchyItems(const std::shared_ptr<tooey::AstNode>& node, int indent);
     void updatePropertyItems();
-    std::string generateDslFromAst(const std::shared_ptr<tooey::AstNode>& node, int indent);
 };
 
