@@ -150,3 +150,28 @@ Example:
 * **SOLID Principles**: Developers should adhere to the SOLID principles of object-oriented design to maintain clean abstraction, single responsibility, and decoupled dependencies.
 * **Precise Methods**: Strive for small, precise, and single-purpose methods and helper functions where appropriate.
 * **Descriptive Variables**: Prefer descriptive, self-documenting names over short, obscure variable names.
+
+---
+
+## 7. Major Architectural Diagnoses and Resolutions
+
+In June 2026, a major audit and refactoring pass was executed to resolve critical rendering and selection bugs in the editor. The resolved issues and their fixes include:
+
+### A. Layout Invalidation Storms
+* **Diagnosis**: During the layout pass, `ListControl::do_layout` called `clear_children()` and `add_child()` to dynamically manage visible item templates. Because adding/removing children calls `invalidate_layout()`, this marked the container's layout state as dirty *during* layout execution, scheduling an infinite loop of layout passes and rendering sweeps that made the preview go awry.
+* **Resolution**: Rebuilt `ListControl` layout management to be non-destructive. Visible item views are added/removed from `children_` solely when datasets update (via `set_item_views`), and `do_layout` only updates their positions and sizes. Private primitive backgrounds and borders are handled directly in a `draw()` method override and kept out of `children_` entirely.
+
+### B. List Control Template Sizing Gap
+* **Diagnosis**: Bound list templates (e.g. Row/Labels in the properties list) rendered blank. Because container controls size children using their cached measured size, and `ListControl::do_measure` did not propagate measure constraints to its templated views, they resolved to `0x0` dimensions and collapsed.
+* **Resolution**: Updated `ListControl::do_measure` to propagate measurement constraints down to all registered child views, ensuring they correctly cached layout sizes.
+
+### C. Redundant AST Modification and Synchronization
+* **Diagnosis**: Selection change triggers updated properties list and set `propertyItems`, which ran the properties binding subscribe callback. Since default values like `WrapContent` were added to empty elements on population, the callback interpreted selection as active edits, modifying the AST and triggering preview canvas reloads.
+* **Resolution**: 
+  1. Wrapped `propertyItems.set(props)` inside `updatePropertyItems` in the `is_updating_` VM flag, blocking subscriber execution during pure selection changes.
+  2. Implemented a guard inside `ListControl::set_selected_index` to return early if the selection has not changed, preventing feedback loop cascades.
+  3. Added deselect support (`index = -1`).
+
+### D. Absolute Coordinate System Unification
+* **Diagnosis**: Selection highlight overlays double-added parent bounds, and hit-testing compared absolute bounds coordinates against canvas-relative input points, breaking click selection on the canvas.
+* **Resolution**: Standardized on absolute coordinate systems for custom layout overlays. `SelectionOverlay::draw` now draws outlines directly using `element->layout_bounds`, and canvas pointer hit-testing compares raw input coordinates directly to absolute bounds without relative-offset conversion.

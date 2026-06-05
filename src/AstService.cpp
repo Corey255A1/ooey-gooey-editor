@@ -16,13 +16,21 @@ std::string AstService::serialize_ast(const std::shared_ptr<tooey::AstNode>& nod
             ss << " id=" << node->id;
         }
         
-        for (const auto& prop : node->properties) {
-            if (prop.first == "width" || prop.first == "height" || prop.first == "spacing") {
-                std::string val = prop.second.rawData;
-                if (prop.second.type == tooey::PropertyType::String) {
+        static const std::vector<std::string> inline_props = {
+            "width", "height", "spacing", "margin", "padding",
+            "alignSelf", "alignItems", "justifyContent",
+            "minWidth", "maxWidth", "minHeight", "maxHeight",
+            "marginLeft", "marginRight", "marginTop", "marginBottom",
+            "paddingLeft", "paddingRight", "paddingTop", "paddingBottom"
+        };
+        for (const auto& prop_name : inline_props) {
+            auto it = node->properties.find(prop_name);
+            if (it != node->properties.end()) {
+                std::string val = it->second.rawData;
+                if (it->second.type == tooey::PropertyType::String) {
                     val = "\"" + val + "\"";
                 }
-                ss << " " << prop.first << "=" << val;
+                ss << " " << prop_name << "=" << val;
             }
         }
 
@@ -34,18 +42,18 @@ std::string AstService::serialize_ast(const std::shared_ptr<tooey::AstNode>& nod
         } else {
             ss << "\n";
             for (const auto& prop : node->properties) {
-                if (prop.first != "width" && prop.first != "height" && prop.first != "spacing") {
+                if (std::find(inline_props.begin(), inline_props.end(), prop.first) == inline_props.end()) {
                     std::string val = prop.second.rawData;
                     if (prop.second.type == tooey::PropertyType::String) {
                         val = "\"" + val + "\"";
-                      } else if (prop.second.type == tooey::PropertyType::Localization) {
+                    } else if (prop.second.type == tooey::PropertyType::Localization) {
                         val = "@tr(\"" + val + "\")";
-                      } else if (prop.second.type == tooey::PropertyType::Binding) {
+                    } else if (prop.second.type == tooey::PropertyType::Binding) {
                         val = "@binding." + val;
-                      } else if (prop.second.type == tooey::PropertyType::Signal) {
+                    } else if (prop.second.type == tooey::PropertyType::Signal) {
                         val = "@signal." + val;
-                      }
-                      ss << indent_str << "    " << prop.first << ": " << val << "\n";
+                    }
+                    ss << indent_str << "    " << prop.first << ": " << val << "\n";
                 }
             }
         }

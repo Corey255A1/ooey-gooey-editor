@@ -4,6 +4,7 @@
 #include "tooey/parser.hpp"
 #include <sstream>
 #include <cctype>
+#include <iostream>
 
 
 EditorViewModel::EditorViewModel() {
@@ -221,7 +222,9 @@ void EditorViewModel::updatePropertyItems() {
         if (!has_width) props.push_back({"width", "WrapContent"});
         if (!has_height) props.push_back({"height", "WrapContent"});
 
+        is_updating_ = true;
         propertyItems.set(props);
+        is_updating_ = false;
     }
 }
 
@@ -325,7 +328,5 @@ void EditorViewModel::redo() {
     is_updating_ = true;
     dslText.set(next_state);
     updateCanvasFromDsl(next_state);
-    last_dsl_ = next_state;
-    is_updating_ = false;
 }
 
