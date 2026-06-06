@@ -31,6 +31,6 @@ HBox id=editorRoot spacing=10 width="MatchParent" height="MatchParent":
         ListControl id=propertiesList items=@binding.propertyItems width="MatchParent" height=350:
             Row id=propRow height=35:
                 Label id=propName text=@binding.propertyItems.name width=90
-                TextBox id=propVal text=@binding.propertyItems.value width=90
+                TextBox id=propVal text=@binding.propertyItems.value width="MatchParent"
 
 

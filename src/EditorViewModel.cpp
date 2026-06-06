@@ -152,13 +152,35 @@ void EditorViewModel::updateCanvasFromDsl(const std::string& dsl) {
         auto tokens = tooey::Lexer::tokenize(dsl);
         auto ast = tooey::Parser::parse(tokens);
         if (ast) {
+            std::string selectedId = "";
+            auto h_items_old = hierarchyItems.get();
+            if (selectedIndex >= 0 && selectedIndex < static_cast<int>(h_items_old.size())) {
+                selectedId = h_items_old[selectedIndex].id;
+            }
+
             currentAst = ast;
             std::vector<HierarchyItem> h_items;
             hierarchyItems.set(h_items);
             rebuildHierarchyItems(currentAst, 0);
-            selectedIndex = -1;
-            std::vector<PropertyItem> p_items;
-            propertyItems.set(p_items);
+
+            bool restored = false;
+            if (!selectedId.empty()) {
+                const auto& new_items = hierarchyItems.get();
+                for (size_t i = 0; i < new_items.size(); ++i) {
+                    if (new_items[i].id == selectedId) {
+                        selectedIndex = static_cast<int>(i);
+                        updatePropertyItems();
+                        restored = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!restored) {
+                selectedIndex = -1;
+                std::vector<PropertyItem> p_items;
+                propertyItems.set(p_items);
+            }
         }
     } catch (...) {
         // Safe skip on syntax check failure

@@ -76,6 +76,7 @@ add_executable(ooey_gooey_editor
     src/EditorViewModel.cpp
     src/AstService.cpp
     src/DynamicInterpreter.cpp
+    src/SelectionOverlay.cpp
     "${EDITOR_GEN_SRC}"
 )
 
