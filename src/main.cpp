@@ -12,10 +12,183 @@
 #include "tooey/lexer.hpp"
 #include "tooey/parser.hpp"
 #include "ooey/renderer/primitives/rect_primitive.hpp"
+#include "ooey/renderer/primitives/line_primitive.hpp"
+#include "ooey/renderer/primitives/text_primitive.hpp"
+#include "gooey/controls/datagrid.hpp"
+#include "gooey/controls/label.hpp"
+#include "gooey/controls/text_box.hpp"
 #include "gooey/mvvmc/scoped_subscription.hpp"
+#include "gooey/mvvmc/controller.hpp"
 #include "SelectionOverlay.hpp"
 #include "tooey/hit_tester.hpp"
 #include "tooey/linter.hpp"
+
+namespace {
+class PropertyCell : public gooey::GooeyElement, public gooey::mvvmc::IInteractive, public std::enable_shared_from_this<PropertyCell> {
+public:
+    PropertyCell(int row_idx, std::weak_ptr<EditorViewModel> weak_vm, std::function<void()> on_clear_selection)
+        : row_idx_(row_idx), weak_vm_(weak_vm), on_clear_selection_(on_clear_selection) {
+        textbox_ = std::make_shared<gooey::controls::TextBox>();
+        textbox_->set_margin(0);
+    }
+
+    ooey::Rect bounds() const override { return layout_bounds; }
+
+    void set_text(const std::string& text) { textbox_->set_text(text); }
+    std::string get_text() const { return textbox_->get_text(); }
+    void set_row_index(int idx) {
+        if (row_idx_ != idx) {
+            row_idx_ = idx;
+            is_editing_ = false;
+        }
+    }
+
+    void set_selected(bool selected) {
+        if (is_selected_ != selected) {
+            is_selected_ = selected;
+            invalidate_layout();
+        }
+        if (!is_selected_) {
+            is_editing_ = false;
+        }
+    }
+    bool is_selected() const { return is_selected_; }
+
+    void draw(ooey::IRenderTarget& target) const override {
+        if (is_editing_) {
+            auto* controller = dynamic_cast<gooey::mvvmc::Controller*>(
+                gooey::Application::get_instance()->get_controller());
+            if (controller && controller->get_focused_element().get() != this) {
+                commit_change();
+                is_editing_ = false;
+            }
+        }
+
+        if (is_selected_) {
+            ooey::RectPrimitive sel_bg(layout_bounds, ooey::Color{0, 120, 215, 30});
+            sel_bg.draw(target);
+        }
+
+        if (is_editing_) {
+            textbox_->draw(target);
+        } else {
+            std::string val = textbox_->get_text();
+            ooey::Point text_pos{layout_bounds.x + 8, layout_bounds.y + (layout_bounds.height - 14) / 2};
+            ooey::TextPrimitive txt(val, ooey::Font{"sans-serif", 14}, text_pos, ooey::Color{240, 240, 240});
+            txt.draw(target);
+        }
+
+        if (is_selected_) {
+            ooey::LinePrimitive top(ooey::Point{layout_bounds.x, layout_bounds.y}, ooey::Point{layout_bounds.x + layout_bounds.width, layout_bounds.y}, ooey::Color{0, 120, 215}, 2.0f);
+            ooey::LinePrimitive bottom(ooey::Point{layout_bounds.x, layout_bounds.y + layout_bounds.height}, ooey::Point{layout_bounds.x + layout_bounds.width, layout_bounds.y + layout_bounds.height}, ooey::Color{0, 120, 215}, 2.0f);
+            ooey::LinePrimitive left(ooey::Point{layout_bounds.x, layout_bounds.y}, ooey::Point{layout_bounds.x, layout_bounds.y + layout_bounds.height}, ooey::Color{0, 120, 215}, 2.0f);
+            ooey::LinePrimitive right(ooey::Point{layout_bounds.x + layout_bounds.width, layout_bounds.y}, ooey::Point{layout_bounds.x + layout_bounds.width, layout_bounds.y + layout_bounds.height}, ooey::Color{0, 120, 215}, 2.0f);
+            top.draw(target);
+            bottom.draw(target);
+            left.draw(target);
+            right.draw(target);
+        }
+    }
+
+    void commit_change() const {
+        if (auto vm = weak_vm_.lock()) {
+            vm->updateProperty(row_idx_, textbox_->get_text());
+        }
+    }
+
+    bool on_pointer_event(const ooey::Pointer& e) override {
+        bool hit = (e.x >= layout_bounds.x && e.x <= layout_bounds.x + layout_bounds.width &&
+                    e.y >= layout_bounds.y && e.y <= layout_bounds.y + layout_bounds.height);
+
+        if (hit && e.state == ooey::PointerState::Pressed) {
+            if (!is_selected_) {
+                if (on_clear_selection_) {
+                    on_clear_selection_();
+                }
+                is_selected_ = true;
+                is_editing_ = false;
+                invalidate_layout();
+            } else {
+                is_editing_ = true;
+                original_value_ = textbox_->get_text();
+                textbox_->on_pointer_event(e);
+                invalidate_layout();
+            }
+            return true;
+        }
+
+        if (is_editing_) {
+            return textbox_->on_pointer_event(e);
+        }
+        return false;
+    }
+
+    bool on_key_event(const ooey::KeyEvent& e) override {
+        if (is_editing_) {
+            if (e.state == ooey::KeyState::Pressed) {
+                if (e.key_code == 0xFF1B || e.key_code == 27) { // Escape
+                    textbox_->set_text(original_value_);
+                    is_editing_ = false;
+                    invalidate_layout();
+                    auto* controller = dynamic_cast<gooey::mvvmc::Controller*>(
+                        gooey::Application::get_instance()->get_controller());
+                    if (controller) {
+                        controller->set_focused_element(shared_from_this());
+                    }
+                    return true;
+                } else if (e.key_code == 0xFF0D || e.key_code == 13 || e.key_code == 10) { // Enter
+                    commit_change();
+                    is_editing_ = false;
+                    invalidate_layout();
+                    auto* controller = dynamic_cast<gooey::mvvmc::Controller*>(
+                        gooey::Application::get_instance()->get_controller());
+                    if (controller) {
+                        controller->set_focused_element(shared_from_this());
+                    }
+                    return true;
+                }
+            }
+            return textbox_->on_key_event(e);
+        }
+        return false;
+    }
+
+    bool on_text_event(const ooey::TextEvent& e) override {
+        if (is_editing_) {
+            return textbox_->on_text_event(e);
+        }
+        return false;
+    }
+
+    void set_theme_manager(std::shared_ptr<gooey::mvvmc::ThemeManager> manager) override {
+        GooeyElement::set_theme_manager(manager);
+        if (textbox_) {
+            textbox_->set_theme_manager(manager);
+        }
+    }
+
+    std::shared_ptr<gooey::controls::TextBox> textbox() const {
+        return textbox_;
+    }
+
+protected:
+    void do_layout(ooey::Rect bounds) override {
+        GooeyElement::do_layout(bounds);
+        if (textbox_) {
+            textbox_->layout(bounds);
+        }
+    }
+
+private:
+    std::shared_ptr<gooey::controls::TextBox> textbox_;
+    int row_idx_;
+    std::weak_ptr<EditorViewModel> weak_vm_;
+    std::function<void()> on_clear_selection_;
+    bool is_selected_{false};
+    mutable bool is_editing_{false};
+    std::string original_value_;
+};
+} // namespace
 
 extern "C" const char* __lsan_default_suppressions() {
     return "leak:libGLX_mesa.so\n"
@@ -37,14 +210,87 @@ int main() {
 
     app.set_window_backend(std::move(backend));
 
+    std::vector<gooey::mvvmc::ScopedSubscription> subs;
+
     auto viewModel = std::make_shared<EditorViewModel>();
     auto editorView = std::make_shared<EditorView>(viewModel);
 
+    // Instantiate DataGrid for property editing in properties editor
+    auto propertiesGrid = std::make_shared<gooey::controls::DataGrid>(
+        ooey::Rect{0, 0, 200, 350}, // bounds
+        35, // row height
+        ooey::Font{"sans-serif", 14}
+    );
+    propertiesGrid->id = "propertiesGrid";
+    propertiesGrid->set_absolute(false);
+    propertiesGrid->set_width(gooey::SizePolicy::MatchParent);
+    propertiesGrid->set_height(gooey::SizePolicy::Fixed, 350);
+
+    // Columns setup
+    std::vector<gooey::controls::DataGridColumn> cols;
+
+    // Column 1: Property name
+    gooey::controls::DataGridColumn name_col;
+    name_col.header = "Property";
+    name_col.width = 90;
+    name_col.cell_factory = []() {
+        auto label = std::make_shared<gooey::controls::Label>();
+        label->set_font(ooey::Font{"sans-serif", 14});
+        label->set_color(ooey::Color{240, 240, 240});
+        label->padding_left = 5;
+        return label;
+    };
+    name_col.cell_binder = [](const std::shared_ptr<gooey::mvvmc::GooeyElement>& el, const std::any& item, int /*row_idx*/) {
+        auto label = std::dynamic_pointer_cast<gooey::controls::Label>(el);
+        if (label && item.has_value()) {
+            auto prop = std::any_cast<PropertyItem>(item);
+            label->set_text(prop.name);
+        }
+    };
+    cols.push_back(name_col);
+
+    // Column 2: Property value (interactive and editable!)
+    auto active_cells = std::make_shared<std::vector<std::weak_ptr<PropertyCell>>>();
+    gooey::controls::DataGridColumn val_col;
+    val_col.header = "Value";
+    val_col.width = 110;
+    val_col.cell_factory = [weak_vm = std::weak_ptr<EditorViewModel>(viewModel), active_cells]() {
+        auto cell = std::make_shared<PropertyCell>(0, weak_vm, [active_cells]() {
+            for (auto& weak_c : *active_cells) {
+                if (auto c = weak_c.lock()) {
+                    c->set_selected(false);
+                }
+            }
+        });
+        active_cells->push_back(cell);
+        return cell;
+    };
+    val_col.cell_binder = [](const std::shared_ptr<gooey::mvvmc::GooeyElement>& el, const std::any& item, int row_idx) {
+        auto cell = std::dynamic_pointer_cast<PropertyCell>(el);
+        if (cell && item.has_value()) {
+            auto prop = std::any_cast<PropertyItem>(item);
+            cell->set_row_index(row_idx);
+            cell->set_text(prop.value);
+        }
+    };
+    cols.push_back(val_col);
+
+    propertiesGrid->set_columns(cols);
+
+    // Add propertiesGrid to rightSidebar VBox container
+    editorView->rightSidebar->add_child(propertiesGrid);
+
+    // Subscribe propertiesGrid to propertyItems from viewModel
+    subs.push_back(viewModel->propertyItems.subscribe([propertiesGrid](const std::vector<PropertyItem>& items) {
+        std::vector<std::any> grid_items;
+        for (const auto& item : items) {
+            grid_items.push_back(item);
+        }
+        propertiesGrid->set_items(grid_items);
+    }));
+
     auto selectionOverlay = std::make_shared<editor::SelectionOverlay>();
     std::shared_ptr<gooey::mvvmc::GooeyElement> activePreview;
-
-    // Vector to keep ScopedSubscriptions alive for main()'s duration
-    std::vector<gooey::mvvmc::ScopedSubscription> subs;
 
     // Capture dependencies weakly to prevent memory leak reference cycles
     std::weak_ptr<EditorViewModel> weak_vm = viewModel;

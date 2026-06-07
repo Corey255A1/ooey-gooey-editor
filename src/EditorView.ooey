@@ -28,9 +28,5 @@ HBox id=editorRoot spacing=10 width="MatchParent" height="MatchParent":
 
     VBox id=rightSidebar width=200 spacing=15:
         Label id=propertiesTitle text="Property Inspector"
-        ListControl id=propertiesList items=@binding.propertyItems width="MatchParent" height=350:
-            Row id=propRow height=35:
-                Label id=propName text=@binding.propertyItems.name width=90
-                TextBox id=propVal text=@binding.propertyItems.value width="MatchParent"
 
 
