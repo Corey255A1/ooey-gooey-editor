@@ -21,7 +21,9 @@ std::string AstService::serialize_ast(const std::shared_ptr<tooey::AstNode>& nod
             "alignSelf", "alignItems", "justifyContent",
             "minWidth", "maxWidth", "minHeight", "maxHeight",
             "marginLeft", "marginRight", "marginTop", "marginBottom",
-            "paddingLeft", "paddingRight", "paddingTop", "paddingBottom"
+            "paddingLeft", "paddingRight", "paddingTop", "paddingBottom",
+            "text", "checked", "value", "placeholder", "color", "font",
+            "title", "label", "labelText", "items"
         };
         for (const auto& prop_name : inline_props) {
             auto it = node->properties.find(prop_name);
