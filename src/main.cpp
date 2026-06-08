@@ -17,6 +17,8 @@
 #include "gooey/controls/datagrid.hpp"
 #include "gooey/controls/label.hpp"
 #include "gooey/controls/text_box.hpp"
+#include "gooey/controls/menubar.hpp"
+#include "gooey/controls/menu.hpp"
 #include "gooey/mvvmc/scoped_subscription.hpp"
 #include "gooey/mvvmc/controller.hpp"
 #include "SelectionOverlay.hpp"
@@ -188,6 +190,72 @@ private:
     mutable bool is_editing_{false};
     std::string original_value_;
 };
+
+std::vector<gooey::controls::MenuCategory> build_editor_menu_categories(std::shared_ptr<EditorViewModel> viewModel) {
+    // 1. File Menu
+    gooey::controls::MenuCategory file_cat;
+    file_cat.name = "File";
+    file_cat.items = {
+        gooey::controls::MenuItem{
+            .label = "New Layout",
+            .shortcut = "Ctrl+N",
+            .action = [viewModel]() {
+                viewModel->dslText.set("Column id=mainLayout width=\"MatchParent\" height=\"MatchParent\":\n");
+                viewModel->updateCanvasFromDsl(viewModel->dslText.get());
+            }
+        },
+        gooey::controls::MenuItem{.is_separator = true},
+        gooey::controls::MenuItem{
+            .label = "Exit",
+            .shortcut = "Alt+F4",
+            .action = []() {
+                gooey::Application::get_instance()->quit();
+            }
+        }
+    };
+
+    // 2. Edit Menu
+    gooey::controls::MenuCategory edit_cat;
+    edit_cat.name = "Edit";
+    edit_cat.items = {
+        gooey::controls::MenuItem{
+            .label = "Undo",
+            .shortcut = "Ctrl+Z",
+            .action = [viewModel]() {
+                viewModel->undo();
+            }
+        },
+        gooey::controls::MenuItem{
+            .label = "Redo",
+            .shortcut = "Ctrl+Y",
+            .action = [viewModel]() {
+                viewModel->redo();
+            }
+        },
+        gooey::controls::MenuItem{.is_separator = true},
+        gooey::controls::MenuItem{
+            .label = "Delete Selected",
+            .shortcut = "Delete",
+            .action = [viewModel]() {
+                viewModel->deleteSelectedElement();
+            }
+        }
+    };
+
+    // 3. Help Menu
+    gooey::controls::MenuCategory help_cat;
+    help_cat.name = "Help";
+    help_cat.items = {
+        gooey::controls::MenuItem{
+            .label = "About Layout Builder",
+            .action = []() {
+                std::cout << "About: OOEY-GOOEY WYSIWYG Layout Builder v1.0\n";
+            }
+        }
+    };
+
+    return {file_cat, edit_cat, help_cat};
+}
 } // namespace
 
 extern "C" const char* __lsan_default_suppressions() {
@@ -214,6 +282,9 @@ int main() {
 
     auto viewModel = std::make_shared<EditorViewModel>();
     auto editorView = std::make_shared<EditorView>(viewModel);
+
+    editorView->menuBar->set_categories(build_editor_menu_categories(viewModel));
+    editorView->menuBar->set_breakpoint(600);
 
     // Instantiate DataGrid for property editing in properties editor
     auto propertiesGrid = std::make_shared<gooey::controls::DataGrid>(
@@ -465,7 +536,7 @@ int main() {
 
     // Dark layout theme
     app.set_clear_color(ooey::Color{22, 22, 28});
-    editorView->set_padding(15);
+    editorView->set_padding(0);
 
     app.set_root_view(editorView);
 
@@ -475,6 +546,8 @@ int main() {
             app.quit();
         });
     }
+
+
 
     app.run();
 
