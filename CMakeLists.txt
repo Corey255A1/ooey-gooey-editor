@@ -84,6 +84,7 @@ add_executable(ooey_gooey_editor
     src/services/AstMutator.cpp
     src/services/AstQuery.cpp
     src/services/DslCompilerService.cpp
+    src/views/PropertyCell.cpp
     "${EDITOR_GEN_SRC}"
 )
 
