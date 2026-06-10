@@ -8,20 +8,11 @@
 #include <memory>
 #include <chrono>
 
-struct ToolboxItem {
-    std::string name;
-};
+#include "domain/models.hpp"
 
-struct HierarchyItem {
-    std::string name;
-    int indent;
-    std::string id;
-};
-
-struct PropertyItem {
-    std::string name;
-    std::string value;
-};
+using editor::domain::ToolboxItem;
+using editor::domain::HierarchyItem;
+using editor::domain::PropertyItem;
 
 class EditorViewModel : public gooey::mvvmc::ViewModel {
 public:
