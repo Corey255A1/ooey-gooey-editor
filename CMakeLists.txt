@@ -86,6 +86,7 @@ add_executable(ooey_gooey_editor
     src/services/DslCompilerService.cpp
     src/views/PropertyCell.cpp
     src/views/PropertyGridConfigurator.cpp
+    src/controllers/EditorController.cpp
     "${EDITOR_GEN_SRC}"
 )
 
