@@ -15,6 +15,7 @@
 #include "views/PropertyCell.hpp"
 #include "views/PropertyGridConfigurator.hpp"
 #include "controllers/EditorController.hpp"
+#include "menus/EditorMenuBuilder.hpp"
 #include "EditorView.hpp"
 #include "DynamicInterpreter.hpp"
 #include "tooey/lexer.hpp"
@@ -36,170 +37,6 @@
 #include "tooey/linter.hpp"
 
 namespace {
-
-std::vector<gooey::controls::MenuCategory> build_editor_menu_categories(
-    std::shared_ptr<EditorViewModel> viewModel,
-    std::shared_ptr<gooey::ThemeManager> themeManager) {
-    
-    std::string current_theme = "dark";
-    if (themeManager && themeManager->active_theme.get()) {
-        current_theme = themeManager->active_theme.get()->name;
-    }
-    
-    std::string current_lang = gooey::LocalizationManager::get().active_locale.get();
-    auto& lm = gooey::LocalizationManager::get();
-
-    // 1. File Menu
-    gooey::controls::MenuCategory file_cat;
-    file_cat.name = lm.translate("menu_file");
-    file_cat.items = {
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_new_layout"),
-            .shortcut = "Ctrl+N",
-            .action = [viewModel]() {
-                viewModel->dslText.set("Column id=mainLayout width=\"MatchParent\" height=\"MatchParent\":\n");
-                viewModel->updateCanvasFromDsl(viewModel->dslText.get());
-            }
-        },
-        gooey::controls::MenuItem{.is_separator = true},
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_exit"),
-            .shortcut = "Alt+F4",
-            .action = []() {
-                gooey::Application::get_instance()->quit();
-            }
-        }
-    };
-
-    // 2. View Menu (Language and Theme sub options)
-    gooey::controls::MenuCategory view_cat;
-    view_cat.name = lm.translate("menu_view");
-
-    // View -> Language submenu
-    std::vector<gooey::controls::MenuItem> lang_subitems = {
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_language_english"),
-            .is_checkbox = true,
-            .checked = (current_lang == "en_US"),
-            .action = []() {
-                gooey::LocalizationManager::get().active_locale.set("en_US");
-            }
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_language_spanish"),
-            .is_checkbox = true,
-            .checked = (current_lang == "es_ES"),
-            .action = []() {
-                gooey::LocalizationManager::get().active_locale.set("es_ES");
-            }
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_language_german"),
-            .is_checkbox = true,
-            .checked = (current_lang == "de_DE"),
-            .action = []() {
-                gooey::LocalizationManager::get().active_locale.set("de_DE");
-            }
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_language_french"),
-            .is_checkbox = true,
-            .checked = (current_lang == "fr_FR"),
-            .action = []() {
-                gooey::LocalizationManager::get().active_locale.set("fr_FR");
-            }
-        }
-    };
-
-    // View -> Theme submenu
-    std::vector<gooey::controls::MenuItem> theme_subitems = {
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_theme_dark"),
-            .is_checkbox = true,
-            .checked = (current_theme == "dark"),
-            .action = [themeManager]() {
-                themeManager->set_active_theme("dark");
-            }
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_theme_light"),
-            .is_checkbox = true,
-            .checked = (current_theme == "light"),
-            .action = [themeManager]() {
-                themeManager->set_active_theme("light");
-            }
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_theme_lofi"),
-            .is_checkbox = true,
-            .checked = (current_theme == "lofi"),
-            .action = [themeManager]() {
-                themeManager->set_active_theme("lofi");
-            }
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_theme_cyberpunk"),
-            .is_checkbox = true,
-            .checked = (current_theme == "cyberpunk"),
-            .action = [themeManager]() {
-                themeManager->set_active_theme("cyberpunk");
-            }
-        }
-    };
-
-    view_cat.items = {
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_language"),
-            .subitems = lang_subitems
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_theme"),
-            .subitems = theme_subitems
-        }
-    };
-
-    // 3. Edit Menu
-    gooey::controls::MenuCategory edit_cat;
-    edit_cat.name = lm.translate("menu_edit");
-    edit_cat.items = {
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_undo"),
-            .shortcut = "Ctrl+Z",
-            .action = [viewModel]() {
-                viewModel->undo();
-            }
-        },
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_redo"),
-            .shortcut = "Ctrl+Y",
-            .action = [viewModel]() {
-                viewModel->redo();
-            }
-        },
-        gooey::controls::MenuItem{.is_separator = true},
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_delete_selected"),
-            .shortcut = "Delete",
-            .action = [viewModel]() {
-                viewModel->deleteSelectedElement();
-            }
-        }
-    };
-
-    // 4. Help Menu
-    gooey::controls::MenuCategory help_cat;
-    help_cat.name = lm.translate("menu_help");
-    help_cat.items = {
-        gooey::controls::MenuItem{
-            .label = lm.translate("menu_about"),
-            .action = []() {
-                std::cout << "About: OOEY-GOOEY WYSIWYG Layout Builder v1.0\n";
-            }
-        }
-    };
-
-    return {file_cat, edit_cat, view_cat, help_cat};
-}
 } // namespace
 
 extern "C" const char* __lsan_default_suppressions() {
@@ -401,32 +238,11 @@ int main() {
     gooey::LocalizationManager::get().load_translations("de_DE", de_dict);
     gooey::LocalizationManager::get().load_translations("fr_FR", fr_dict);
 
-    editorView->menuBar->set_categories(build_editor_menu_categories(viewModel, theme_manager));
+    auto menu_builder = std::make_shared<editor::menus::EditorMenuBuilder>(
+        viewModel, theme_manager, editorView->menuBar);
+    menu_builder->initialize();
     editorView->menuBar->set_style_name("menubar");
     editorView->menuBar->set_breakpoint(600);
-
-    // Subscribe to theme and locale changes to rebuild menu categories dynamically
-    std::weak_ptr<EditorView> weak_view_menu = editorView;
-    std::weak_ptr<EditorViewModel> weak_vm_menu = viewModel;
-    std::weak_ptr<gooey::ThemeManager> weak_theme_manager = theme_manager;
-
-    subs.push_back(theme_manager->active_theme.subscribe([weak_view_menu, weak_vm_menu, weak_theme_manager](const std::shared_ptr<gooey::Theme>&) {
-        auto view = weak_view_menu.lock();
-        auto vm = weak_vm_menu.lock();
-        auto tm = weak_theme_manager.lock();
-        if (view && vm && tm) {
-            view->menuBar->set_categories(build_editor_menu_categories(vm, tm));
-        }
-    }));
-
-    subs.push_back(gooey::LocalizationManager::get().active_locale.subscribe([weak_view_menu, weak_vm_menu, weak_theme_manager](const std::string&) {
-        auto view = weak_view_menu.lock();
-        auto vm = weak_vm_menu.lock();
-        auto tm = weak_theme_manager.lock();
-        if (view && vm && tm) {
-            view->menuBar->set_categories(build_editor_menu_categories(vm, tm));
-        }
-    }));
 
     auto selectionOverlay = std::make_shared<editor::SelectionOverlay>();
 
