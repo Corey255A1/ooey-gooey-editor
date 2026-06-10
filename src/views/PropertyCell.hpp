@@ -3,7 +3,7 @@
 #include "gooey/mvvmc/i_interactive.hpp"
 #include "gooey/mvvmc/theme.hpp"
 #include "gooey/controls/text_box.hpp"
-#include "EditorViewModel.hpp"
+#include "viewmodels/EditorViewModel.hpp"
 #include <memory>
 #include <functional>
 #include <string>

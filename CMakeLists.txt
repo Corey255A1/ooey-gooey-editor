@@ -75,7 +75,7 @@ add_custom_command(
 
 add_executable(ooey_gooey_editor
     src/main.cpp
-    src/EditorViewModel.cpp
+    src/viewmodels/EditorViewModel.cpp
     src/AstService.cpp
     src/DynamicInterpreter.cpp
     src/SelectionOverlay.cpp
@@ -85,12 +85,14 @@ add_executable(ooey_gooey_editor
     src/services/AstQuery.cpp
     src/services/DslCompilerService.cpp
     src/views/PropertyCell.cpp
+    src/views/PropertyGridConfigurator.cpp
     "${EDITOR_GEN_SRC}"
 )
 
 target_link_libraries(ooey_gooey_editor PRIVATE ooey gooey tooey)
 target_include_directories(ooey_gooey_editor PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodels"
     "${EDITOR_GEN_DIR}"
 )
 

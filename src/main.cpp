@@ -6,13 +6,14 @@
 #include "ooey/ooey.hpp"
 #include "gooey/application.hpp"
 #include "ooey/platform.hpp"
-#include "EditorViewModel.hpp"
+#include "viewmodels/EditorViewModel.hpp"
 #include "services/HistoryManager.hpp"
 #include "services/AstSerializer.hpp"
 #include "services/AstMutator.hpp"
 #include "services/AstQuery.hpp"
 #include "services/DslCompilerService.hpp"
 #include "views/PropertyCell.hpp"
+#include "views/PropertyGridConfigurator.hpp"
 #include "EditorView.hpp"
 #include "DynamicInterpreter.hpp"
 #include "tooey/lexer.hpp"
@@ -426,46 +427,6 @@ int main() {
         }
     }));
 
-    // Instantiate DataGrid for property editing in properties editor
-    auto propertiesGrid = std::make_shared<gooey::controls::DataGrid>(
-        ooey::Rect{0, 0, 200, 350}, // bounds
-        35, // row height
-        ooey::Font{"sans-serif", 14}
-    );
-    propertiesGrid->id = "propertiesGrid";
-    propertiesGrid->set_absolute(false);
-    propertiesGrid->set_width(gooey::SizePolicy::MatchParent);
-    propertiesGrid->set_height(gooey::SizePolicy::Fixed, 350);
-
-    // Columns setup
-    std::vector<gooey::controls::DataGridColumn> cols;
-
-    // Column 1: Property name
-    gooey::controls::DataGridColumn name_col;
-    name_col.header = "Property";
-    name_col.width = 90;
-    name_col.cell_factory = []() {
-        auto label = std::make_shared<gooey::controls::Label>();
-        label->set_font(ooey::Font{"sans-serif", 14});
-        label->set_color(ooey::Color{240, 240, 240});
-        label->padding_left = 5;
-        return label;
-    };
-    name_col.cell_binder = [](const std::shared_ptr<gooey::mvvmc::GooeyElement>& el, const std::any& item, int /*row_idx*/) {
-        auto label = std::dynamic_pointer_cast<gooey::controls::Label>(el);
-        if (label && item.has_value()) {
-            auto prop = std::any_cast<PropertyItem>(item);
-            label->set_text(prop.name);
-        }
-    };
-    cols.push_back(name_col);
-
-    // Column 2: Property value (interactive and editable!)
-    auto active_cells = std::make_shared<std::vector<std::weak_ptr<editor::views::PropertyCell>>>();
-    gooey::controls::DataGridColumn val_col;
-    val_col.header = "Value";
-    val_col.width = 110;
-
     editor::views::PropertyCell::FocusProvider focus_provider = [](std::shared_ptr<editor::views::PropertyCell> elem) {
         auto* controller = dynamic_cast<gooey::mvvmc::Controller*>(
             gooey::Application::get_instance()->get_controller());
@@ -473,46 +434,10 @@ int main() {
             controller->set_focused_element(elem);
         }
     };
-    editor::views::PropertyCell::FocusChecker focus_checker = [](const editor::views::PropertyCell* elem) {
-        auto* controller = dynamic_cast<gooey::mvvmc::Controller*>(
-            gooey::Application::get_instance()->get_controller());
-        return controller && controller->get_focused_element().get() == static_cast<const ooey::IDrawable*>(elem);
-    };
 
-    val_col.cell_factory = [weak_vm = std::weak_ptr<EditorViewModel>(viewModel), active_cells, focus_provider, focus_checker]() {
-        auto cell = std::make_shared<editor::views::PropertyCell>(0, weak_vm, [active_cells]() {
-            for (auto& weak_c : *active_cells) {
-                if (auto c = weak_c.lock()) {
-                    c->set_selected(false);
-                }
-            }
-        }, focus_provider, focus_checker);
-        active_cells->push_back(cell);
-        return cell;
-    };
-    val_col.cell_binder = [](const std::shared_ptr<gooey::mvvmc::GooeyElement>& el, const std::any& item, int row_idx) {
-        auto cell = std::dynamic_pointer_cast<editor::views::PropertyCell>(el);
-        if (cell && item.has_value()) {
-            auto prop = std::any_cast<PropertyItem>(item);
-            cell->set_row_index(row_idx);
-            cell->set_text(prop.value);
-        }
-    };
-    cols.push_back(val_col);
-
-    propertiesGrid->set_columns(cols);
-
-    // Add propertiesGrid to rightSidebar VBox container
+    auto propertiesGrid = editor::views::PropertyGridConfigurator::create_and_configure(
+        viewModel, subs, focus_provider);
     editorView->rightSidebar->add_child(propertiesGrid);
-
-    // Subscribe propertiesGrid to propertyItems from viewModel
-    subs.push_back(viewModel->propertyItems.subscribe([propertiesGrid](const std::vector<PropertyItem>& items) {
-        std::vector<std::any> grid_items;
-        for (const auto& item : items) {
-            grid_items.push_back(item);
-        }
-        propertiesGrid->set_items(grid_items);
-    }));
 
     auto selectionOverlay = std::make_shared<editor::SelectionOverlay>();
     std::shared_ptr<gooey::mvvmc::GooeyElement> activePreview;
