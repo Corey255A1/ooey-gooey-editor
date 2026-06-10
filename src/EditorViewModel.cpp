@@ -7,8 +7,17 @@
 #include <iostream>
 
 
-EditorViewModel::EditorViewModel(std::shared_ptr<editor::services::HistoryManager> history)
-    : history_(history)
+EditorViewModel::EditorViewModel(
+    std::shared_ptr<editor::services::IAstMutator> mutator,
+    std::shared_ptr<editor::services::IAstSerializer> serializer,
+    std::shared_ptr<editor::services::IAstQuery> query,
+    std::shared_ptr<editor::services::IDslCompilerService> compiler,
+    std::shared_ptr<editor::services::HistoryManager> history)
+    : mutator_(mutator)
+    , serializer_(serializer)
+    , query_(query)
+    , compiler_(compiler)
+    , history_(history)
 {
     // Populate toolbox list
     std::vector<ToolboxItem> items = {
@@ -47,12 +56,12 @@ EditorViewModel::EditorViewModel(std::shared_ptr<editor::services::HistoryManage
             properties_to_update.push_back({item.name, item.value});
         }
 
-        bool changed = editor::AstService::update_node_properties(currentAst, targetId, properties_to_update);
+        bool changed = mutator_->update_properties(currentAst, targetId, properties_to_update);
 
         if (changed) {
             history_->record(dslText.get(), true);
             is_updating_ = true;
-            std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
+            std::string serialized = serializer_->serialize(currentAst, 0);
             dslText.set(serialized);
 
             // Rebuild hierarchy and restore selection
@@ -92,8 +101,8 @@ void EditorViewModel::updateProperty(int index, const std::string& newValue) {
         
         if (currentAst) {
             history_->record(dslText.get(), true);
-            editor::AstService::update_node_properties(currentAst, targetId, {{props[index].name, newValue}});
-            std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
+            mutator_->update_properties(currentAst, targetId, {{props[index].name, newValue}});
+            std::string serialized = serializer_->serialize(currentAst, 0);
             dslText.set(serialized);
             updateCanvasFromDsl(serialized);
         }
@@ -120,7 +129,7 @@ void EditorViewModel::addControlToCanvas(const std::string& type) {
 
     bool added = false;
     if (selectedIndex >= 0 && selectedIndex < static_cast<int>(hierarchyItems.get().size())) {
-        added = editor::AstService::add_child_node(currentAst, hierarchyItems.get()[selectedIndex].id, newNode);
+        added = mutator_->add_child(currentAst, hierarchyItems.get()[selectedIndex].id, newNode);
     }
     if (!added) {
         if (!currentAst->children.empty()) {
@@ -130,15 +139,14 @@ void EditorViewModel::addControlToCanvas(const std::string& type) {
         }
     }
 
-    std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
+    std::string serialized = serializer_->serialize(currentAst, 0);
     dslText.set(serialized);
     updateCanvasFromDsl(serialized);
 }
 
 void EditorViewModel::updateCanvasFromDsl(const std::string& dsl) {
     try {
-        auto tokens = tooey::Lexer::tokenize(dsl);
-        auto ast = tooey::Parser::parse(tokens);
+        auto ast = compiler_->compile(dsl);
         if (ast) {
             std::string selectedId = "";
             auto h_items_old = hierarchyItems.get();
@@ -195,21 +203,7 @@ void EditorViewModel::updatePropertyItems() {
     if (selectedIndex < 0) return;
     auto selected_item = hierarchyItems.get()[selectedIndex];
     
-    struct Finder {
-        std::string targetId;
-        std::shared_ptr<tooey::AstNode> find(const std::shared_ptr<tooey::AstNode>& n) {
-            if (!n) return nullptr;
-            if (n->id == targetId) return n;
-            for (const auto& child : n->children) {
-                auto found = find(child);
-                if (found) return found;
-            }
-            return nullptr;
-        }
-    };
-
-    Finder fnd{selected_item.id};
-    auto node = fnd.find(currentAst);
+    auto node = query_->find_by_id(currentAst, selected_item.id);
     if (node) {
         std::vector<PropertyItem> props;
         props.push_back({"id", node->id});
@@ -245,10 +239,10 @@ void EditorViewModel::deleteSelectedElement() {
 
     history_->record(dslText.get(), true);
 
-    if (editor::AstService::delete_node(currentAst, targetId)) {
+    if (mutator_->delete_node(currentAst, targetId)) {
         selectedIndex = -1;
         is_updating_ = true;
-        std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
+        std::string serialized = serializer_->serialize(currentAst, 0);
         dslText.set(serialized);
         updateCanvasFromDsl(serialized);
         is_updating_ = false;
@@ -262,9 +256,9 @@ void EditorViewModel::moveSelectedElementUp() {
 
     history_->record(dslText.get(), true);
 
-    if (editor::AstService::move_node_up(currentAst, targetId)) {
+    if (mutator_->move_node_up(currentAst, targetId)) {
         is_updating_ = true;
-        std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
+        std::string serialized = serializer_->serialize(currentAst, 0);
         dslText.set(serialized);
         updateCanvasFromDsl(serialized);
         for (size_t i = 0; i < hierarchyItems.get().size(); ++i) {
@@ -284,9 +278,9 @@ void EditorViewModel::moveSelectedElementDown() {
 
     history_->record(dslText.get(), true);
 
-    if (editor::AstService::move_node_down(currentAst, targetId)) {
+    if (mutator_->move_node_down(currentAst, targetId)) {
         is_updating_ = true;
-        std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
+        std::string serialized = serializer_->serialize(currentAst, 0);
         dslText.set(serialized);
         updateCanvasFromDsl(serialized);
         for (size_t i = 0; i < hierarchyItems.get().size(); ++i) {

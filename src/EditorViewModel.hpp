@@ -11,6 +11,10 @@
 #include "domain/models.hpp"
 
 #include "services/HistoryManager.hpp"
+#include "services/IAstSerializer.hpp"
+#include "services/IAstMutator.hpp"
+#include "services/IAstQuery.hpp"
+#include "services/IDslCompilerService.hpp"
 
 using editor::domain::ToolboxItem;
 using editor::domain::HierarchyItem;
@@ -18,7 +22,12 @@ using editor::domain::PropertyItem;
 
 class EditorViewModel : public gooey::mvvmc::ViewModel {
 public:
-    explicit EditorViewModel(std::shared_ptr<editor::services::HistoryManager> history);
+    explicit EditorViewModel(
+        std::shared_ptr<editor::services::IAstMutator> mutator,
+        std::shared_ptr<editor::services::IAstSerializer> serializer,
+        std::shared_ptr<editor::services::IAstQuery> query,
+        std::shared_ptr<editor::services::IDslCompilerService> compiler,
+        std::shared_ptr<editor::services::HistoryManager> history);
 
     // Observable properties bound directly by visual layout
     gooey::mvvmc::Property<std::vector<ToolboxItem>> toolboxItems;
@@ -28,7 +37,6 @@ public:
 
     // Selected item index in the hierarchy
     int selectedIndex = -1;
-    bool is_updating_ = false;
 
     // View actions
     void selectElement(int index);
@@ -47,7 +55,13 @@ public:
 private:
     gooey::mvvmc::SubscriptionSink sink_;
 
+    std::shared_ptr<editor::services::IAstMutator> mutator_;
+    std::shared_ptr<editor::services::IAstSerializer> serializer_;
+    std::shared_ptr<editor::services::IAstQuery> query_;
+    std::shared_ptr<editor::services::IDslCompilerService> compiler_;
     std::shared_ptr<editor::services::HistoryManager> history_;
+
+    bool is_updating_ = false;
 
     void rebuildHierarchyItems(const std::shared_ptr<tooey::AstNode>& node, int indent);
     void updatePropertyItems();

@@ -7,6 +7,11 @@
 #include "gooey/application.hpp"
 #include "ooey/platform.hpp"
 #include "EditorViewModel.hpp"
+#include "services/HistoryManager.hpp"
+#include "services/AstSerializer.hpp"
+#include "services/AstMutator.hpp"
+#include "services/AstQuery.hpp"
+#include "services/DslCompilerService.hpp"
 #include "EditorView.hpp"
 #include "DynamicInterpreter.hpp"
 #include "tooey/lexer.hpp"
@@ -380,7 +385,12 @@ int main() {
 
     std::vector<gooey::mvvmc::ScopedSubscription> subs;
 
-    auto viewModel = std::make_shared<EditorViewModel>();
+    auto serializer = std::make_shared<editor::services::AstSerializer>();
+    auto query = std::make_shared<editor::services::AstQuery>();
+    auto mutator = std::make_shared<editor::services::AstMutator>(query);
+    auto compiler = std::make_shared<editor::services::DslCompilerService>();
+    auto history = std::make_shared<editor::services::HistoryManager>();
+    auto viewModel = std::make_shared<EditorViewModel>(mutator, serializer, query, compiler, history);
     auto editorView = std::make_shared<EditorView>(viewModel);
 
     // Setup Theme Manager
@@ -758,11 +768,9 @@ int main() {
     // Propagate code editor edits back to the ViewModel reactive property
     editorView->codeEditor->on_text_changed = [weak_vm](const std::string& text) {
         if (auto vm = weak_vm.lock()) {
-            if (vm->is_updating_) return;
-            vm->is_updating_ = true;
+            if (vm->dslText.get() == text) return;
             vm->dslText.set(text);
             vm->updateCanvasFromDsl(text);
-            vm->is_updating_ = false;
         }
     };
 

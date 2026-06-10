@@ -80,6 +80,10 @@ add_executable(ooey_gooey_editor
     src/DynamicInterpreter.cpp
     src/SelectionOverlay.cpp
     src/services/HistoryManager.cpp
+    src/services/AstSerializer.cpp
+    src/services/AstMutator.cpp
+    src/services/AstQuery.cpp
+    src/services/DslCompilerService.cpp
     "${EDITOR_GEN_SRC}"
 )
 
@@ -96,4 +100,32 @@ add_executable(test_history_manager
 target_include_directories(test_history_manager PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
+
+add_executable(test_ast_query
+    tests/test_ast_query.cpp
+    src/services/AstQuery.cpp
+)
+target_include_directories(test_ast_query PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_link_libraries(test_ast_query PRIVATE tooey)
+
+add_executable(test_ast_serializer
+    tests/test_ast_serializer.cpp
+    src/services/AstSerializer.cpp
+)
+target_include_directories(test_ast_serializer PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_link_libraries(test_ast_serializer PRIVATE tooey)
+
+add_executable(test_ast_mutator
+    tests/test_ast_mutator.cpp
+    src/services/AstMutator.cpp
+    src/services/AstQuery.cpp
+)
+target_include_directories(test_ast_mutator PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_link_libraries(test_ast_mutator PRIVATE tooey)
 
