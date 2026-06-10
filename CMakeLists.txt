@@ -88,6 +88,8 @@ add_executable(ooey_gooey_editor
     src/views/PropertyGridConfigurator.cpp
     src/controllers/EditorController.cpp
     src/menus/EditorMenuBuilder.cpp
+    src/theme/ThemeRegistry.cpp
+    src/i18n/TranslationLoader.cpp
     "${EDITOR_GEN_SRC}"
 )
 
@@ -133,4 +135,23 @@ target_include_directories(test_ast_mutator PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 target_link_libraries(test_ast_mutator PRIVATE tooey)
+
+add_executable(test_theme_registry
+    tests/test_theme_registry.cpp
+    src/theme/ThemeRegistry.cpp
+)
+target_include_directories(test_theme_registry PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_link_libraries(test_theme_registry PRIVATE ooey gooey)
+
+add_executable(test_translation_loader
+    tests/test_translation_loader.cpp
+    src/i18n/TranslationLoader.cpp
+)
+target_include_directories(test_translation_loader PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_link_libraries(test_translation_loader PRIVATE ooey gooey)
+
 
