@@ -7,7 +7,9 @@
 #include <iostream>
 
 
-EditorViewModel::EditorViewModel() {
+EditorViewModel::EditorViewModel(std::shared_ptr<editor::services::HistoryManager> history)
+    : history_(history)
+{
     // Populate toolbox list
     std::vector<ToolboxItem> items = {
         {"Label"}, {"Button"}, {"CheckBox"}, {"TextBox"},
@@ -24,28 +26,14 @@ EditorViewModel::EditorViewModel() {
     dslText.set(defaultDsl);
     updateCanvasFromDsl(defaultDsl);
 
-    last_dsl_ = defaultDsl;
-    last_typing_record_time_ = std::chrono::steady_clock::now();
+    history_->record(defaultDsl, true);
 
     // Subscribe to dslText changes (user typing in the editor)
     sink_.add(dslText.subscribe([this](const std::string& text) {
         if (is_updating_) {
-            last_dsl_ = text;
             return;
         }
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_typing_record_time_).count();
-        if (elapsed > 1000 || last_dsl_.empty()) {
-            if (undo_stack_.empty() || undo_stack_.back() != last_dsl_) {
-                undo_stack_.push_back(last_dsl_);
-                redo_stack_.clear();
-                if (undo_stack_.size() > 100) {
-                    undo_stack_.erase(undo_stack_.begin());
-                }
-            }
-            last_typing_record_time_ = now;
-        }
-        last_dsl_ = text;
+        history_->record(text, false);
     }));
 
     // Subscribe to property updates
@@ -62,7 +50,7 @@ EditorViewModel::EditorViewModel() {
         bool changed = editor::AstService::update_node_properties(currentAst, targetId, properties_to_update);
 
         if (changed) {
-            record_history();
+            history_->record(dslText.get(), true);
             is_updating_ = true;
             std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
             dslText.set(serialized);
@@ -103,7 +91,7 @@ void EditorViewModel::updateProperty(int index, const std::string& newValue) {
         auto targetId = hierarchyItems.get()[selectedIndex].id;
         
         if (currentAst) {
-            record_history();
+            history_->record(dslText.get(), true);
             editor::AstService::update_node_properties(currentAst, targetId, {{props[index].name, newValue}});
             std::string serialized = editor::AstService::serialize_ast(currentAst, 0);
             dslText.set(serialized);
@@ -113,7 +101,7 @@ void EditorViewModel::updateProperty(int index, const std::string& newValue) {
 }
 
 void EditorViewModel::addControlToCanvas(const std::string& type) {
-    record_history();
+    history_->record(dslText.get(), true);
     auto newNode = std::make_shared<tooey::AstNode>();
     newNode->nodeType = type;
     newNode->id = "new" + type + "_" + std::to_string(rand() % 1000);
@@ -255,7 +243,7 @@ void EditorViewModel::deleteSelectedElement() {
     auto targetId = hierarchyItems.get()[selectedIndex].id;
     if (targetId == "mainLayout") return;
 
-    record_history();
+    history_->record(dslText.get(), true);
 
     if (editor::AstService::delete_node(currentAst, targetId)) {
         selectedIndex = -1;
@@ -272,7 +260,7 @@ void EditorViewModel::moveSelectedElementUp() {
     auto targetId = hierarchyItems.get()[selectedIndex].id;
     if (targetId == "mainLayout") return;
 
-    record_history();
+    history_->record(dslText.get(), true);
 
     if (editor::AstService::move_node_up(currentAst, targetId)) {
         is_updating_ = true;
@@ -294,7 +282,7 @@ void EditorViewModel::moveSelectedElementDown() {
     auto targetId = hierarchyItems.get()[selectedIndex].id;
     if (targetId == "mainLayout") return;
 
-    record_history();
+    history_->record(dslText.get(), true);
 
     if (editor::AstService::move_node_down(currentAst, targetId)) {
         is_updating_ = true;
@@ -311,44 +299,27 @@ void EditorViewModel::moveSelectedElementDown() {
     }
 }
 
-void EditorViewModel::record_history() {
-    std::string current = dslText.get();
-    if (undo_stack_.empty() || undo_stack_.back() != current) {
-        undo_stack_.push_back(current);
-        redo_stack_.clear();
-        if (undo_stack_.size() > 100) {
-            undo_stack_.erase(undo_stack_.begin());
-        }
-    }
-}
-
 void EditorViewModel::undo() {
-    if (undo_stack_.empty()) return;
-
-    std::string previous_state = undo_stack_.back();
-    undo_stack_.pop_back();
+    if (!history_->can_undo()) return;
 
     std::string current_state = dslText.get();
-    redo_stack_.push_back(current_state);
+    std::string previous_state = history_->undo(current_state);
 
     is_updating_ = true;
     dslText.set(previous_state);
     updateCanvasFromDsl(previous_state);
-    last_dsl_ = previous_state;
     is_updating_ = false;
 }
 
 void EditorViewModel::redo() {
-    if (redo_stack_.empty()) return;
-
-    std::string next_state = redo_stack_.back();
-    redo_stack_.pop_back();
+    if (!history_->can_redo()) return;
 
     std::string current_state = dslText.get();
-    undo_stack_.push_back(current_state);
+    std::string next_state = history_->redo(current_state);
 
     is_updating_ = true;
     dslText.set(next_state);
     updateCanvasFromDsl(next_state);
+    is_updating_ = false;
 }
 

@@ -10,13 +10,15 @@
 
 #include "domain/models.hpp"
 
+#include "services/HistoryManager.hpp"
+
 using editor::domain::ToolboxItem;
 using editor::domain::HierarchyItem;
 using editor::domain::PropertyItem;
 
 class EditorViewModel : public gooey::mvvmc::ViewModel {
 public:
-    EditorViewModel();
+    explicit EditorViewModel(std::shared_ptr<editor::services::HistoryManager> history);
 
     // Observable properties bound directly by visual layout
     gooey::mvvmc::Property<std::vector<ToolboxItem>> toolboxItems;
@@ -45,11 +47,7 @@ public:
 private:
     gooey::mvvmc::SubscriptionSink sink_;
 
-    std::vector<std::string> undo_stack_;
-    std::vector<std::string> redo_stack_;
-    void record_history();
-    std::string last_dsl_;
-    std::chrono::steady_clock::time_point last_typing_record_time_;
+    std::shared_ptr<editor::services::HistoryManager> history_;
 
     void rebuildHierarchyItems(const std::shared_ptr<tooey::AstNode>& node, int indent);
     void updatePropertyItems();

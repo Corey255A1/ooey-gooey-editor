@@ -79,6 +79,7 @@ add_executable(ooey_gooey_editor
     src/AstService.cpp
     src/DynamicInterpreter.cpp
     src/SelectionOverlay.cpp
+    src/services/HistoryManager.cpp
     "${EDITOR_GEN_SRC}"
 )
 
@@ -86,5 +87,13 @@ target_link_libraries(ooey_gooey_editor PRIVATE ooey gooey tooey)
 target_include_directories(ooey_gooey_editor PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${EDITOR_GEN_DIR}"
+)
+
+add_executable(test_history_manager
+    tests/test_history_manager.cpp
+    src/services/HistoryManager.cpp
+)
+target_include_directories(test_history_manager PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
